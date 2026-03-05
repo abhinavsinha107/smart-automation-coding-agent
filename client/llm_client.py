@@ -1,12 +1,14 @@
 import os
+import asyncio
 from typing import Any, AsyncGenerator
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError, APIConnectionError, APIError
 from client.response import TextDelta, StreamEvent, TokenUsage, EventType
 
 
 class LLMClient:
     def __init__(self) -> None:
         self._client: AsyncOpenAI | None = None
+        self._max_retries: int = 3
 
     def get_client(self) -> AsyncOpenAI:
         if self._client is None:
@@ -30,14 +32,43 @@ class LLMClient:
             "messages": messages,
             "stream": stream,
         }
-        if stream:
-            kwargs["stream_options"] = {"include_usage": True}
-            async for event in self._stream_response(client, kwargs):
-                yield event
-        else:
-            event = await self._non_stream_response(client, kwargs)
-            yield event
-        return
+
+        for attempt in range(self._max_retries + 1):
+            try:
+                if stream:
+                    kwargs["stream_options"] = {"include_usage": True}
+                    async for event in self._stream_response(client, kwargs):
+                        yield event
+                else:
+                    event = await self._non_stream_response(client, kwargs)
+                    yield event
+                return
+            except RateLimitError as e:
+                if attempt < self._max_retries:
+                    wait_time = 2**attempt
+                    await asyncio.sleep(wait_time)
+                else:
+                    yield StreamEvent(
+                        type=EventType.ERROR,
+                        error=f"Rate limit exceeded after {self._max_retries} retries: {e}",
+                    )
+                    return
+            except APIConnectionError as e:
+                if attempt < self._max_retries:
+                    wait_time = 2**attempt
+                    await asyncio.sleep(wait_time)
+                else:
+                    yield StreamEvent(
+                        type=EventType.ERROR,
+                        error=f"API connection error after {self._max_retries} retries: {e}",
+                    )
+                    return
+            except APIError as e:
+                yield StreamEvent(
+                    type=EventType.ERROR,
+                    error=f"API error: {e}",
+                )
+                return
 
     async def _stream_response(
         self, client: AsyncOpenAI, kwargs: dict[str, Any]
