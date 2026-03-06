@@ -28,7 +28,7 @@ class LLMClient:
     ) -> AsyncGenerator[StreamEvent, None]:
         client = self.get_client()
         kwargs = {
-            "model": "gpt-4o",
+            "model": os.getenv("LLM_MODEL_NAME", "gpt-4o"),
             "messages": messages,
             "stream": stream,
         }
