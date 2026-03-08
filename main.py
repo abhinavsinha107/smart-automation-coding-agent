@@ -1,7 +1,6 @@
 import sys
 import click
 import asyncio
-from typing import Any
 from dotenv import load_dotenv
 from agent.agent import Agent
 from agent.events import AgentEventType
