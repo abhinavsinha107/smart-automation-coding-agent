@@ -1,3 +1,4 @@
+import os
 from pydantic import BaseModel, Field
 from tools.base import Tool, ToolKind, ToolInvocation, ToolResult
 from utils.paths import resolve_path, is_binary_file
@@ -32,6 +33,7 @@ class ReadFileTool(Tool):
     kind = ToolKind.READ
     schema = ReadFileParams
     MAX_FILE_SIZE = 1024 * 1024 * 10
+    MAX_OUTPUT_TOKENS = 25000
 
     async def execute(self, invocation: ToolInvocation) -> ToolResult:
         params = ReadFileParams(**invocation.params)
@@ -91,7 +93,7 @@ class ReadFileTool(Tool):
                 formatted_lines.append(f"{i:6}|{line}")
 
             output = "\n".join(formatted_lines)
-            token_count = count_tokens(output)
+            token_count = count_tokens(output, model=os.getenv("LLM_MODEL_NAME"))
             truncated = False
 
             if token_count > self.MAX_OUTPUT_TOKENS:
@@ -114,12 +116,12 @@ class ReadFileTool(Tool):
 
             return ToolResult.success_result(
                 output=output,
-                truncated=truncated,
                 metadata={
                     "path": str(path),
                     "total_lines": total_lines,
                     "shown_start": start_idx + 1,
                     "shown_end": end_idx,
+                    "truncated": truncated,
                 },
             )
         except Exception as e:
