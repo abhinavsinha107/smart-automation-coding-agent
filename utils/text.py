@@ -10,7 +10,7 @@ def get_tokenizer(model: str):
         return encoding.encode
 
 
-def count_tokens(text: str, model: str = "gpt-4") -> int:
+def count_tokens(text: str, model: str = "gpt-4o") -> int:
     tokenizer = get_tokenizer(model)
     if tokenizer:
         return len(tokenizer(text))
