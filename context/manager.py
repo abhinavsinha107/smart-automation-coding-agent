@@ -1,8 +1,8 @@
-import os
 from typing import Any
 from dataclasses import dataclass, field
 from prompts.system import get_system_prompt
 from utils.text import count_tokens
+from config.config import Config
 
 
 @dataclass
@@ -29,9 +29,10 @@ class MessageItem:
 
 
 class ContextManager:
-    def __init__(self) -> None:
-        self._system_prompt = get_system_prompt()
-        self._model_name = os.getenv("LLM_MODEL_NAME")
+    def __init__(self, config: Config) -> None:
+        self._system_prompt = get_system_prompt(config)
+        self.config = config
+        self._model_name = self.config.model_name
         self._messages: list[MessageItem] = []
 
     def add_user_message(self, content: str) -> None:

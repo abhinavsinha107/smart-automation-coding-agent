@@ -11,6 +11,7 @@ from rich.table import Table
 from rich.syntax import Syntax
 from utils.paths import display_path_rel_to_cwd
 from utils.text import truncate_text
+from config.config import Config
 
 AGENT_THEME = Theme(
     {
@@ -51,15 +52,17 @@ def get_console() -> Console:
 
 
 class TUI:
-    def __init__(self, console: Console | None = None) -> None:
+    def __init__(self, config: Config, console: Console | None = None) -> None:
         self.console = console or get_console()
         self._assistant_stream_open = False
         self._tool_args_by_call_id: dict[str, dict[str, Any]] = {}
-        self.cwd = Path.cwd()
+        self.config = config
+        self.cwd = self.config.cwd
 
     def begin_assistant(self) -> None:
         self.console.print()
         self.console.print(Rule(Text("Assistant", style="assistant")))
+        self.console.print()
         self._assistant_stream_open = True
 
     def end_assistant(self) -> None:
