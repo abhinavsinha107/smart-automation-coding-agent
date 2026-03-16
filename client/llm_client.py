@@ -1,4 +1,3 @@
-import os
 import asyncio
 from typing import Any, AsyncGenerator
 from openai import AsyncOpenAI, RateLimitError, APIConnectionError, APIError

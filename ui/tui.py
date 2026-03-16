@@ -58,6 +58,8 @@ class TUI:
         self._tool_args_by_call_id: dict[str, dict[str, Any]] = {}
         self.config = config
         self.cwd = self.config.cwd
+        self.cwd = self.config.cwd
+        self._max_block_tokens = 240
 
     def begin_assistant(self) -> None:
         self.console.print()
@@ -76,6 +78,7 @@ class TUI:
     def _ordered_args(self, tool_name: str, args: dict[str, Any]) -> list[tuple]:
         _PREFERRED_ORDER = {
             "read_file": ["path", "offset", "limit"],
+            "write_file": ["path", "create_directories", "content"],
         }
 
         preferred = _PREFERRED_ORDER.get(tool_name, [])
@@ -98,14 +101,14 @@ class TUI:
         table.add_column(style="code", overflow="fold")
 
         for key, value in self._ordered_args(tool_name, args):
-            # if isinstance(value, str):
-            #     if key in {"content", "old_string", "new_string"}:
-            #         line_count = len(value.splitlines()) or 0
-            #         byte_count = len(value.encode("utf-8", errors="replace"))
-            #         value = f"<{line_count} lines • {byte_count} bytes>"
+            if isinstance(value, str):
+                if key in {"content", "old_string", "new_string"}:
+                    line_count = len(value.splitlines()) or 0
+                    byte_count = len(value.encode("utf-8", errors="replace"))
+                    value = f"<{line_count} lines • {byte_count} bytes>"
 
-            # if isinstance(value, bool):
-            #     value = str(value)
+            if isinstance(value, bool):
+                value = str(value)
 
             table.add_row(key, value)
 
@@ -233,6 +236,7 @@ class TUI:
         output: str,
         error: str | None,
         metadata: dict[str, Any] | None,
+        diff: str | None,
         truncated: bool,
     ) -> None:
         border_style = f"tool.{tool_kind}" if tool_kind else "tool"
@@ -283,7 +287,7 @@ class TUI:
                 output_display = truncate_text(
                     output,
                     "",
-                    240,
+                    self._max_block_tokens,
                 )
                 blocks.append(
                     Syntax(
@@ -293,6 +297,61 @@ class TUI:
                         word_wrap=False,
                     )
                 )
+        elif name == "write_file" and success:
+            output_line = output.strip() if output.strip() else "Completed"
+            blocks.append(Text(output_line, style="muted"))
+            if diff and str(diff).strip():
+                diff_display = truncate_text(
+                    diff,
+                    self.config.model_name,
+                    self._max_block_tokens,
+                )
+                blocks.append(
+                    Syntax(
+                        diff_display,
+                        "diff",
+                        theme="monokai",
+                        word_wrap=True,
+                    )
+                )
+            else:
+                args = self._tool_args_by_call_id.get(call_id, {})
+                content = args.get("content", "")
+                if content:
+                    path_val = primary_path or args.get("path")
+                    pl = self._guess_language(path_val)
+                    content_display = truncate_text(
+                        content,
+                        "",
+                        self._max_block_tokens,
+                    )
+                    blocks.append(
+                        Syntax(
+                            content_display,
+                            pl,
+                            theme="monokai",
+                            word_wrap=False,
+                        )
+                    )
+
+        if not success:
+            error_msg = error or output or "Task failed"
+            if error_msg.strip():
+                blocks.append(Text(error_msg, style="error"))
+        elif not blocks and output and output.strip():
+            output_display = truncate_text(
+                output,
+                "",
+                self._max_block_tokens,
+            )
+            blocks.append(
+                Syntax(
+                    output_display,
+                    "text",
+                    theme="monokai",
+                    word_wrap=False,
+                )
+            )
 
         if truncated:
             blocks.append(Text("note: tool output was truncated", style="warning"))
