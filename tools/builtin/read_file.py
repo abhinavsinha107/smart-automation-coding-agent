@@ -1,4 +1,3 @@
-import os
 from pydantic import BaseModel, Field
 from tools.base import Tool, ToolKind, ToolInvocation, ToolResult
 from utils.paths import resolve_path, is_binary_file
